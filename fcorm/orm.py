@@ -8,6 +8,104 @@ class Orm(object):
     def __init__(self, db, tableName, keyProperty = PRIMARY_KEY):
         ''' 操作数据库
         --
+            测试表结构如下：
+                CREATE TABLE `course` (
+                    `cid` int(11) NOT NULL AUTO_INCREMENT COMMENT '课程号，自增',
+                    `name` varchar(20) NOT NULL COMMENT '课程名',
+                    `tid` int(11) NOT NULL COMMENT '授课教师',
+                    PRIMARY KEY (`cid`) USING BTREE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+                CREATE TABLE `student` (
+                    `sid` int(11) NOT NULL AUTO_INCREMENT COMMENT '学号，自增',
+                    `name` varchar(20) NOT NULL COMMENT '学生名',
+                    `age` int(11) NOT NULL COMMENT '年龄',
+                    PRIMARY KEY (`sid`) USING BTREE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+                CREATE TABLE `study` (
+                    `sid` int(11) NOT NULL COMMENT '学号',
+                    `cid` int(11) NOT NULL COMMENT '课程号',
+                    `result` int(11) DEFAULT NULL COMMENT '成绩',
+                    PRIMARY KEY (`sid`,`cid`) USING BTREE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+                CREATE TABLE `teacher` (
+                    `tid` int(11) NOT NULL AUTO_INCREMENT COMMENT '教师号，自增',
+                    `name` varchar(20) NOT NULL COMMENT '教师名',
+                    `level` varchar(20) NOT NULL COMMENT '等级',
+                    PRIMARY KEY (`tid`) USING BTREE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+            
+            测试代码和测试结果：
+                stuOrm = Orm(db, 'student', 'sid')
+                # 查询所有学生
+                print(stuOrm.selectAll())
+                # [{'sid': 1, 'name': '张三', 'age': 18}, {'sid': 2, 'name': '李四', 'age': 19}]
+
+                # 查询所有学生的学号和名字
+                stuOrm.setSelectProperties(['sid', 'name'])
+                print(stuOrm.selectAll())
+                # [{'sid': 1, 'name': '张三'}, {'sid': 2, 'name': '李四'}]
+
+                # 查询学号为1的学生信息
+                stuOrm.clear()
+                print(stuOrm.selectByPrimaeyKey(1))
+                # [{'sid': 1, 'name': '张三', 'age': 18}]
+
+                # 查询所有学生，按年龄从大到小排序
+                stuOrm.orderByClause('age')
+                print(stuOrm.selectAll())
+                # [{'sid': 2, 'name': '李四', 'age': 19}, {'sid': 1, 'name': '张三', 'age': 18}]
+
+                # 查询所有学生的（学号，姓名，课程名，成绩，任课教师）
+                p = {'student':['sid','name'], 'course':['name'], 'study':['result'], 'teacher':['name']}
+                stuOrm.setSelectProperties(p).leftJoin('study', 'study.sid=student.sid').leftJoin('course', 'course.cid=study.cid').leftJoin('teacher', 'teacher.tid=course.tid')
+                print(stuOrm.selectAll())
+                # [{'sid': 2, 'name': '李四', 'course.name': '计算机', 'result': 80, 'teacher.name': '老王'}, 
+                #  {'sid': 1, 'name': '张三', 'course.name': '计算机', 'result': 90, 'teacher.name': '老王'}]
+
+                # 查询所有姓张的学生
+                stuOrm.clear()
+                example = Example().andLike('name', '张%')
+                print(stuOrm.selectByExample(example))
+                # [{'sid': 1, 'name': '张三', 'age': 18}]
+
+                # 分页查询
+                print(stuOrm.selectPageByExample(example))
+                # (1, [{'sid': 1, 'name': '张三', 'age': 18}])
+
+                # 分页查询2
+                print(stuOrm.selectPageAll())
+                # (2, [{'sid': 1, 'name': '张三', 'age': 18}, {'sid': 2, 'name': '李四', 'age': 19}])
+
+                # 插入数据
+                print(stuOrm.insertOne({'name':'王五', 'age':20}))
+                # 3
+
+                # 批量插入
+                print(stuOrm.insertList(['name', 'age'], [['老六', 21], ['老七', 22]]))
+                # 4
+
+                # 批量插入2
+                print(stuOrm.insertDictList([{'name':'老八', 'age':23}, {'name':'老九', 'age':24}]))
+                # 6
+
+                # 更新
+                print(stuOrm.updateByPrimaryKey({'name':'张三2', 'age':10, 'sid':1}))
+                # True
+
+                # 条件更新
+                print(stuOrm.updateByExample({'name':'张三3', 'age':10}, example))
+                # True
+
+                # 删除
+                print(stuOrm.deleteByPrimaryKey(1))
+                # True
+
+                # 条件删除
+                example.orEqualTo({'name':'老八'})
+                print(stuOrm.deleteByExample(example))
+                # True
+        --
+    
             @param db: 数据库连接
             @param tableName: 表名
             @param keyProperty: 主键字段名。可以不填，不填默认主键名为id
@@ -78,7 +176,7 @@ class Orm(object):
             cursor.close()
     
     def insertList(self, keys, dataList):
-        ''' 插入一组数据
+        ''' 插入一组数据，注意：返回的是第一条数据的ID
         --
             @example
                 orm.insertList(['name', 'age'], [['张三', 18], ['李四', 19]]})
@@ -100,7 +198,7 @@ class Orm(object):
 
             sql = 'INSERT INTO `{}`({}) VALUES({})'.format(self.tableName, joinList(keys), pers(len(keys)))
             _log.info(sql)
-            cursor.execute(sql, dataList)
+            cursor.executemany(sql, dataList)
             lastId = cursor.lastrowid
             self.db.commit()
             return lastId
@@ -112,7 +210,7 @@ class Orm(object):
             cursor.close()
     
     def insertDictList(self, dataList):
-        ''' 插入一组数据
+        ''' 插入一组数据，注意：返回的是第一条数据的ID
         --
             @example
                 orm.insertDictList([{'name':'张三', 'age':18}, {'name':'李四', 'age':19}])
@@ -127,17 +225,17 @@ class Orm(object):
             values = []
             keys = ''
             ps = ''
-            # 如果主键不是自增，则生成主键
-            if self.generator != AUTO_INCREMENT_KEYS:   
-                for data in dataList:
-                    if self.keyProperty not in data or data[self.keyProperty] == 0:    # 没有主键
+
+            for data in dataList:
+                if self.keyProperty not in data or data[self.keyProperty] == 0:    # 没有主键
+                    if self.generator != AUTO_INCREMENT_KEYS:   # 如果主键不是自增，则生成主键
                         data[self.keyProperty] = self.generator
-                    keys, ps, vs = fieldSplit(data)
-                    values.append(vs)
+                keys, ps, vs = fieldSplit(data)
+                values.append(vs)
             
             sql = 'INSERT INTO `{}`({}) VALUES({})'.format(self.tableName, keys, ps)
             _log.info(sql)
-            cursor.execute(sql, values)
+            cursor.executemany(sql, values)
             lastId = cursor.lastrowid
             self.db.commit()
             return lastId
@@ -281,6 +379,34 @@ class Orm(object):
                     arr.append('`{}`.`{}`'.format(k, v2))
             self.properties = joinList(arr, prefix='', suffix='')
         return self
+    
+    def selectAll(self):
+        ''' 查询所有
+        --
+        '''
+        cursor = self.db.cursor()
+
+        try:
+            strDict = {
+                'distinctStr':self.distinct,
+                'propertiesStr': self.properties,
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr
+            }
+            sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} {orderByStr} {groupByStr}'''.format(**strDict)
+            _log.info(sql)
+            cursor.execute(sql)
+            res = cursor.fetchall()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
 
     def selectByPrimaeyKey(self, primaryValue):
         ''' 根据主键查询
@@ -304,7 +430,7 @@ class Orm(object):
                 '''.format(**strDict)
             _log.info(sql)
             cursor.execute(sql, primaryValue)
-            res = cursor.fetchall()
+            res = cursor.fetchone()
             self.db.commit()
             return res
         except Exception as e:
@@ -346,12 +472,13 @@ class Orm(object):
         finally:
             cursor.close()
     
-    def selectCountByExample(self, countProperties, example, countName = ''):
-        ''' 根据Example条件统计查询
+    def selectTransactByExample(self, transactProperties, example, transactName = '', transact = 'COUNT'):
+        ''' 根据Example条件聚合查询
         --
-            @param countProperties: 统计字段
+            @param transactProperties: 统计字段
             @param example: 条件
-            @param countName: 重命名统计字段
+            @param transactName: 重命名统计字段
+            @param transact: 使用哪个函数，默认COUNT。可选SUM，MAX，MIN等
         '''
         cursor = self.db.cursor()
 
@@ -360,7 +487,7 @@ class Orm(object):
             strDict = {
                 'distinctStr':self.distinct,
                 'propertiesStr': self.properties,
-                'countStr': 'COUNT({}) {}'.format(countProperties, countName),
+                'countStr': '{}({}) {}'.format(transact, transactProperties, transactName),
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'whereStr': whereStr,
@@ -375,6 +502,57 @@ class Orm(object):
             res = cursor.fetchall()
             self.db.commit()
             return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def selectPageAll(self, page = 1, pageNum = 10):
+        ''' 分页查询
+        --
+        '''
+        cursor = self.db.cursor()
+
+        startId = (page - 1) * pageNum
+
+        try:
+            strDict = {
+                'propertiesStr': self.keyProperty,
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr
+            }
+            
+            sql = '''SELECT COUNT(`{propertiesStr}`) num FROM {tableName} {joinStr} 
+                    {orderByStr} {groupByStr}
+                    '''.format(**strDict)
+            cursor.execute(sql)
+            numRes = cursor.fetchone()
+            num = numRes['num']
+
+            if num == 0 or num < startId:
+                return num, []
+            
+            strDict = {
+                'distinctStr':self.distinct,
+                'propertiesStr': self.properties,
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr,
+                'limitStr':'LIMIT {}, {}'.format(startId, pageNum)
+            }
+            sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
+                    {orderByStr} {groupByStr} {limitStr}
+                    '''.format(**strDict)
+            _log.info(sql)
+            cursor.execute(sql)
+            res = cursor.fetchall()
+            self.db.commit()
+            return num, res
         except Exception as e:
             _log.error(e)
             self.db.rollback()
@@ -401,7 +579,7 @@ class Orm(object):
                 'groupByStr': self.groupByStr
             }
             
-            sql = '''SELECT COUNT(`{propertiesStr}`) FROM {tableName} {joinStr} 
+            sql = '''SELECT COUNT(`{propertiesStr}`) num FROM {tableName} {joinStr} 
                     WHERE {whereStr} {orderByStr} {groupByStr}
                     '''.format(**strDict)
             cursor.execute(sql, values)
