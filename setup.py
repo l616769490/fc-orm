@@ -13,7 +13,7 @@ from setuptools import setup, find_packages		# 没有这个库的可以通过pip
 
 setup(
     name = "fcorm",												    # pip项目名
-    version = "0.0.1",													# 版本号
+    version = "0.1.0",													# 版本号
     keywords = ("pip", "pathtool","timetool", "magetool", "mage"),							
     description = "阿里云函数计算ORM框架",									# 描述
     long_description = "贵州旅游大数据项目所用到的阿里云函数计算ORM框架",
@@ -26,5 +26,5 @@ setup(
     packages = find_packages(),											# 导入目录下的所有__init__.py包
     include_package_data = True,
     platforms = "any",
-    install_requires = ['PyMySQL']												# 项目引用的第三方包
+    install_requires = []												# 项目引用的第三方包
 )

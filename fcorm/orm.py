@@ -155,12 +155,10 @@ class Orm(object):
             @param data: 要更新的数据，字典格式
             @param primaryValue: 主键值，为None则从data中寻找主键
         '''
-        pv = primaryValue
-
-        if not pv:
-            pv = data.pop(self.keyProperty, None)
+        if not primaryValue:
+            primaryValue = data.pop(self.keyProperty, None)
         
-        if not pv:
+        if not primaryValue:
             raise Exception('未传入主键值！')
         
         if not data:
@@ -169,7 +167,7 @@ class Orm(object):
         cursor = self.db.cursor()
         try:
             fieldStr, values = fieldStrAndPer(data)
-            values.append(pv)
+            values.append(primaryValue)
             sql = 'UPDATE `{}` SET {} WHERE `{}`=%s'.format(self.tableName, fieldStr, self.keyProperty)
             _log.info(sql)
             cursor.execute(sql, values)
@@ -186,7 +184,6 @@ class Orm(object):
         ''' 根据Example条件更新
         --
         '''
-    
         if not example:
             raise Exception('未传入更新条件！')
         
@@ -279,86 +276,225 @@ class Orm(object):
             self.properties = joinList(properties)
         elif isinstance(properties, dict):
             arr = []
-            for k, v1 in properties:
+            for k, v1 in properties.items():
                 for v2 in v1:
                     arr.append('`{}`.`{}`'.format(k, v2))
             self.properties = joinList(arr, prefix='', suffix='')
         return self
-    
-    def _select(self, whereStr):
-        ''' 生成查询字符串和数据
-        --
-            @param whereStr: where之后的字符串
-        '''
-        # SELECT之后 FROM之前的字符串
-        perStr = ''
-        # FROM之后 WHERE之前的字符串
-        fromStr = ''
-        # 值列表
-        values = []
 
     def selectByPrimaeyKey(self, primaryValue):
         ''' 根据主键查询
         --
             @param primaryValue: 主键值
         '''
-        #cursor = self.db.cursor()
+        cursor = self.db.cursor()
 
-        strDict = {
-            'distinctStr':self.distinct,
-            'propertiesStr': self.properties,
-            'tableName': self.tableName,
-            'joinStr': self.joinStr,
-            'whereStr':'`{}`=%s'.format(self.keyProperty),
-            'orderByStr': self.orderByStr,
-            'groupByStr': self.groupByStr,
-            'limitStr':''
-        }
-        
-        sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
-                WHERE {whereStr} {orderByStr} {groupByStr} {limitStr}
+        try:
+            strDict = {
+                'distinctStr':self.distinct,
+                'propertiesStr': self.properties,
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'whereStr':'`{}`=%s'.format(self.keyProperty),
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr
+            }
+            sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
+                WHERE {whereStr} {orderByStr} {groupByStr}
                 '''.format(**strDict)
-        return sql, primaryValue
+            _log.info(sql)
+            cursor.execute(sql, primaryValue)
+            res = cursor.fetchall()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
     
     def selectByExample(self, example):
         ''' 根据Example条件进行查询
+        --
         '''
-    
-    def selectCountByExample(self, countProperties, example):
-        ''' 根据Example条件统计查询
-        '''
+        cursor = self.db.cursor()
 
-    def selectPageByExample(self, example, page, pageNum):
-        ''' 根据Example条件分页查询
+        try:
+            whereStr, values = example.whereBuilder()
+            strDict = {
+                'distinctStr':self.distinct,
+                'propertiesStr': self.properties,
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'whereStr': whereStr,
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr
+            }
+            sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
+                WHERE {whereStr} {orderByStr} {groupByStr}
+                '''.format(**strDict)
+            _log.info(sql)
+            cursor.execute(sql, values)
+            res = cursor.fetchall()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def selectCountByExample(self, countProperties, example, countName = ''):
+        ''' 根据Example条件统计查询
+        --
+            @param countProperties: 统计字段
+            @param example: 条件
+            @param countName: 重命名统计字段
         '''
+        cursor = self.db.cursor()
+
+        try:
+            whereStr, values = example.whereBuilder()
+            strDict = {
+                'distinctStr':self.distinct,
+                'propertiesStr': self.properties,
+                'countStr': 'COUNT({}) {}'.format(countProperties, countName),
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'whereStr': whereStr,
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr
+            }
+            sql = '''SELECT {distinctStr} {propertiesStr} , {countStr} FROM {tableName} {joinStr} 
+                WHERE {whereStr} {orderByStr} {groupByStr}
+                '''.format(**strDict)
+            _log.info(sql)
+            cursor.execute(sql, values)
+            res = cursor.fetchall()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+
+    def selectPageByExample(self, example, page = 1, pageNum = 10):
+        ''' 根据Example条件分页查询
+        --
+        '''
+        cursor = self.db.cursor()
+
+        startId = (page - 1) * pageNum
+
+        try:
+            whereStr, values = example.whereBuilder()
+            strDict = {
+                'propertiesStr': self.keyProperty,
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'whereStr': whereStr,
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr
+            }
+            
+            sql = '''SELECT COUNT(`{propertiesStr}`) FROM {tableName} {joinStr} 
+                    WHERE {whereStr} {orderByStr} {groupByStr}
+                    '''.format(**strDict)
+            cursor.execute(sql, values)
+            numRes = cursor.fetchone()
+            num = numRes['num']
+
+            if num == 0 or num < startId:
+                return num, []
+            
+            strDict = {
+                'distinctStr':self.distinct,
+                'propertiesStr': self.properties,
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'whereStr': whereStr,
+                'orderByStr': self.orderByStr,
+                'groupByStr': self.groupByStr,
+                'limitStr':'LIMIT {}, {}'.format(startId, pageNum)
+            }
+            sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
+                    WHERE {whereStr} {orderByStr} {groupByStr} {limitStr}
+                    '''.format(**strDict)
+            _log.info(sql)
+            cursor.execute(sql, values)
+            res = cursor.fetchall()
+            self.db.commit()
+            return num, res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
 
     #################################### 删除操作 ####################################
-    def deleteByPrimaryKey(self, example):
+    def deleteByPrimaryKey(self, primaryValue):
         ''' 根据主键删除 
         '''
+        
+        if not primaryValue:
+            raise Exception('未传入主键值！')
+
+        cursor = self.db.cursor()
+        try:
+            sql = 'DELETE FROM `{}` WHERE `{}`=%s'.format(self.tableName, self.keyProperty)
+            _log.info(sql)
+            cursor.execute(sql, primaryValue)
+            self.db.commit()
+            return True
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
     def deleteByExample(self, example):
         ''' 根据Example条件删除数据
         '''
+        if not example:
+            raise Exception('未传入更新条件！')
+
+        cursor = self.db.cursor()
+        try:
+            whereStr, values = example.whereBuilder()
+            sql = 'DELETE FROM `{}` WHERE {}'.format(self.tableName, whereStr)
+            _log.info(sql)
+            cursor.execute(sql, values)
+            self.db.commit()
+            return True
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
     
     #################################### 清除关闭 ####################################
     def clear(self):
         ''' 清除数据，只保留数据库连接、表名、主键。清除掉主键策略/查询字段/分组字段/排序字段/多表连接/HAVING字段/去重等
         --
         '''
-        # 主键策略
-        self.generator = AUTO_INCREMENT_KEYS
         # 多表连接
-        self.joinTable = []
+        self.joinStr = ''
         # 查询字段
-        self.properties = None
+        self.properties = ' * '
         # 排序字段
-        self.orderBy = []
+        self.orderByStr = ''
         # 分组字段
-        self.groupBy = []
+        self.groupByStr = ''
         # HAVING字段
-        self.havingStr = None
+        self.havingStr = ''
         # 是否去重
-        self.distinct = False
+        self.distinct = ''
         return self
     
     def close(self):
