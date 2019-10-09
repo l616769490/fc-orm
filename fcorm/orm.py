@@ -171,7 +171,7 @@ class Orm(object):
         except Exception as e:
             _log.error(e)
             self.db.rollback()
-            return 0
+            return -1
         finally:
             cursor.close()
     
@@ -205,7 +205,7 @@ class Orm(object):
         except Exception as e:
             _log.error(e)
             self.db.rollback()
-            return 0
+            return -1
         finally:
             cursor.close()
     
@@ -242,7 +242,7 @@ class Orm(object):
         except Exception as e:
             _log.error(e)
             self.db.rollback()
-            return 0
+            return -1
         finally:
             cursor.close()
 
@@ -379,45 +379,7 @@ class Orm(object):
                     arr.append('`{}`.`{}`'.format(k, v2))
             self.properties = joinList(arr, prefix='', suffix='')
         return self
-    
-    def selectOneBySQL(self, sql):
-        ''' 查询所有
-        --
-        '''
-        cursor = self.db.cursor()
 
-        try:
-            _log.info(sql)
-            cursor.execute(sql)
-            res = cursor.fetchone()
-            self.db.commit()
-            return res
-        except Exception as e:
-            _log.error(e)
-            self.db.rollback()
-            return False
-        finally:
-            cursor.close()
-    
-    def selectAllBySQL(self, sql):
-        ''' 查询所有
-        --
-        '''
-        cursor = self.db.cursor()
-
-        try:
-            _log.info(sql)
-            cursor.execute(sql)
-            res = cursor.fetchall()
-            self.db.commit()
-            return res
-        except Exception as e:
-            _log.error(e)
-            self.db.rollback()
-            return False
-        finally:
-            cursor.close()
-    
     def selectAll(self):
         ''' 查询所有
         --
@@ -673,6 +635,7 @@ class Orm(object):
             return False
         finally:
             cursor.close()
+            
     def deleteByExample(self, example):
         ''' 根据Example条件删除数据
         '''
@@ -691,6 +654,77 @@ class Orm(object):
             _log.error(e)
             self.db.rollback()
             return False
+        finally:
+            cursor.close()
+
+    #################################### 原生SQL操作 ####################################
+    def selectOneBySQL(self, sql, values = None):
+        ''' 查询单个
+        --
+        '''
+        cursor = self.db.cursor()
+
+        try:
+            _log.info(sql)
+            if values:
+                cursor.execute(sql, values)
+            else:
+                cursor.execute(sql)
+            res = cursor.fetchone()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def selectAllBySQL(self, sql, values = None):
+        ''' 查询所有
+        --
+        '''
+        cursor = self.db.cursor()
+
+        try:
+            _log.info(sql)
+            if values:
+                cursor.execute(sql, values)
+            else:
+                cursor.execute(sql)
+            res = cursor.fetchall()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+
+    def executeBySQL(self, sql, values = None):
+        ''' 根据sql进行更新删除或者新增操作， 不能用于执行查询操作，因为不会返回查询结果，查询使用selectAllBySQL或者selectOneBySQL
+        --
+            @param sql: sql语句
+            @param values: 参数
+            @rerturn: 失败返回-1
+        '''
+        cursor = self.db.cursor()
+        try:
+            _log.info(sql)
+            if values:
+                cursor.execute(sql, values)
+            else:
+                cursor.execute(sql)
+
+            res = cursor.lastrowid
+            
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return -1
         finally:
             cursor.close()
     
