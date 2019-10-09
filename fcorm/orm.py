@@ -380,6 +380,44 @@ class Orm(object):
             self.properties = joinList(arr, prefix='', suffix='')
         return self
     
+    def selectOneBySQL(self, sql):
+        ''' 查询所有
+        --
+        '''
+        cursor = self.db.cursor()
+
+        try:
+            _log.info(sql)
+            cursor.execute(sql)
+            res = cursor.fetchone()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def selectAllBySQL(self, sql):
+        ''' 查询所有
+        --
+        '''
+        cursor = self.db.cursor()
+
+        try:
+            _log.info(sql)
+            cursor.execute(sql)
+            res = cursor.fetchall()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+    
     def selectAll(self):
         ''' 查询所有
         --

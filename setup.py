@@ -13,10 +13,10 @@ from setuptools import setup, find_packages		# 没有这个库的可以通过pip
 
 setup(
     name = "fcorm",												    # pip项目名
-    version = "0.1.0",													# 版本号
+    version = "0.1.2",													# 版本号
     keywords = ("pip", "pathtool","timetool", "magetool", "mage"),							
-    description = "阿里云函数计算ORM框架",									# 描述
-    long_description = "贵州旅游大数据项目所用到的阿里云函数计算ORM框架",
+    description = "简易ORM框架",									# 描述
+    long_description = "只支持pymysql连接",
     license = "MIT Licence",
 
     url = "https://github.com/l616769490/fc-orm",				# 项目url
