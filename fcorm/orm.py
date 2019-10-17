@@ -128,6 +128,7 @@ class Orm(object):
         self.groupByStr = ''
         # HAVING字段
         self.havingStr = ''
+        self.havingValues = []
         # 是否去重
         self.distinct = ''
     
@@ -142,6 +143,33 @@ class Orm(object):
         return self
 
     #################################### 新增操作 ####################################
+    def insertData(self, *args):
+        ''' 向数据库中写入数据
+        --
+            @example
+                orm.insertData({'name':'张三', 'age':18})
+                orm.insertData(['name', 'age'], [['张三', 18], ['李四', 19]])
+                orm.insertData([{'name':'张三', 'age':18}, {'name':'李四', 'age':19}])
+            
+            @param args: 要写入的数据，可以有以下三种形式：
+                        1. dict: 单条数据key,value键值对形式
+                        2. list, list: 两个数组形式。第一个数据传入数据库中对应的字段。第二个数组传入需要写入的数据，可以是单条数据（一维数组），也可以是多条数据（二维数组）
+                        3. list: 多条数据，数组里面是多个字典，每个字典代表一条数据
+        '''
+        n = len(args)
+        if n == 0:
+            return -1
+        elif n == 1:
+            if isinstance(args[0], list):
+                return self.insertDictList(args[0])
+            elif isinstance(args[0], dict):
+                return self.insertOne(args[0])
+            else:
+                return -1
+        elif n == 2:
+            return self.insertList(args[0], args[1])
+        else:
+            return -1
 
     def insertOne(self, data):
         ''' 向数据库写入一条数据
@@ -179,7 +207,7 @@ class Orm(object):
         ''' 插入一组数据，注意：返回的是第一条数据的ID
         --
             @example
-                orm.insertList(['name', 'age'], [['张三', 18], ['李四', 19]]})
+                orm.insertList(['name', 'age'], [['张三', 18], ['李四', 19]])
 
             @param keys: 插入的字段名
             @param dataList: 插入的数据列表，和字段名一一对应
@@ -329,6 +357,13 @@ class Orm(object):
             self.groupByStr = self.groupByStr + ' , ' + key
         return self
     
+    def havingByExample(self, example):
+        ''' HAVING
+        --
+        '''
+        self.havingStr, self.havingValues = example.whereBuilder()
+        return self
+    
     def join(self, tName, onStr):
         ''' 多表连接查询，内连接
         --
@@ -369,6 +404,7 @@ class Orm(object):
                 @example:
                     ['name', 'age'] => SELECT `name`, `age` FROM
                     {'user':['name', 'age'], 'order':['orderId']}  => SELECT `user`.`name`, `user`.`age`, `order`:`orderId` FROM
+                    {'user':[('name', 'user_name'), 'age'], 'order':['orderId']}  => SELECT `user`.`name` `user_name`, `user`.`age`, `order`:`orderId` FROM
         '''
         if isinstance(properties, list):
             self.properties = joinList(properties)
@@ -376,7 +412,10 @@ class Orm(object):
             arr = []
             for k, v1 in properties.items():
                 for v2 in v1:
-                    arr.append('`{}`.`{}`'.format(k, v2))
+                    if isinstance(v2, tuple):
+                        arr.append('`{}`.`{}` `{}`'.format(k, v2[0], v2[1]))
+                    else:
+                        arr.append('`{}`.`{}`'.format(k, v2))
             self.properties = joinList(arr, prefix='', suffix='')
         return self
 
@@ -392,10 +431,10 @@ class Orm(object):
                 'propertiesStr': self.properties,
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
-                'orderByStr': self.orderByStr,
-                'groupByStr': self.groupByStr
+                'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr
             }
-            sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} {orderByStr} {groupByStr}'''.format(**strDict)
+            sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} {groupByStr} {orderByStr}'''.format(**strDict)
             _log.info(sql)
             cursor.execute(sql)
             res = cursor.fetchall()
@@ -422,11 +461,11 @@ class Orm(object):
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'whereStr':'`{}`=%s'.format(self.keyProperty),
-                'orderByStr': self.orderByStr,
-                'groupByStr': self.groupByStr
+                'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr
             }
             sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
-                WHERE {whereStr} {orderByStr} {groupByStr}
+                WHERE {whereStr} {groupByStr} {orderByStr}
                 '''.format(**strDict)
             _log.info(sql)
             cursor.execute(sql, primaryValue)
@@ -454,11 +493,11 @@ class Orm(object):
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'whereStr': whereStr,
-                'orderByStr': self.orderByStr,
-                'groupByStr': self.groupByStr
+                'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr
             }
             sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
-                WHERE {whereStr} {orderByStr} {groupByStr}
+                WHERE {whereStr} {groupByStr} {orderByStr}
                 '''.format(**strDict)
             _log.info(sql)
             cursor.execute(sql, values)
@@ -491,11 +530,54 @@ class Orm(object):
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'whereStr': whereStr,
-                'orderByStr': self.orderByStr,
-                'groupByStr': self.groupByStr
+                'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr
             }
             sql = '''SELECT {distinctStr} {propertiesStr} , {countStr} FROM {tableName} {joinStr} 
-                WHERE {whereStr} {orderByStr} {groupByStr}
+                WHERE {whereStr} {groupByStr} {orderByStr}
+                '''.format(**strDict)
+            _log.info(sql)
+            cursor.execute(sql, values)
+            res = cursor.fetchall()
+            self.db.commit()
+            return res
+        except Exception as e:
+            _log.error(e)
+            self.db.rollback()
+            return False
+        finally:
+            cursor.close()
+    
+    def selectGroupHavingByExample(self, transactProperties, example, transactName = '', transact = 'COUNT'):
+        ''' 根据Example条件聚合查询
+        --
+            @param transactProperties: 统计字段
+            @param example: 条件
+            @param transactName: 重命名统计字段
+            @param transact: 使用哪个函数，默认COUNT。可选SUM，MAX，MIN等
+        '''
+        if not self.groupByStr:
+            return False
+
+        cursor = self.db.cursor()
+
+        try:
+            whereStr, values = example.whereBuilder()
+            strDict = {
+                'distinctStr':self.distinct,
+                'propertiesStr': self.properties,
+                'countStr': '{}({}) {}'.format(transact, transactProperties, transactName),
+                'tableName': self.tableName,
+                'joinStr': self.joinStr,
+                'whereStr': whereStr,
+                'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr
+            }
+            if self.havingStr and self.havingValues:
+                strDict['havingStr'] = ' HAVING ' + self.havingStr
+                values.extend(self.havingValues)
+            sql = '''SELECT {distinctStr} {propertiesStr} , {countStr} FROM {tableName} {joinStr} 
+                WHERE {whereStr} {groupByStr} {havingStr} {orderByStr}
                 '''.format(**strDict)
             _log.info(sql)
             cursor.execute(sql, values)
@@ -522,12 +604,12 @@ class Orm(object):
                 'propertiesStr': self.keyProperty,
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
-                'orderByStr': self.orderByStr,
-                'groupByStr': self.groupByStr
+                'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr
             }
             
             sql = '''SELECT COUNT(`{propertiesStr}`) num FROM {tableName} {joinStr} 
-                    {orderByStr} {groupByStr}
+                    {groupByStr} {orderByStr}
                     '''.format(**strDict)
             cursor.execute(sql)
             numRes = cursor.fetchone()
@@ -541,12 +623,12 @@ class Orm(object):
                 'propertiesStr': self.properties,
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
-                'orderByStr': self.orderByStr,
                 'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr,
                 'limitStr':'LIMIT {}, {}'.format(startId, pageNum)
             }
             sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
-                    {orderByStr} {groupByStr} {limitStr}
+                    {groupByStr} {orderByStr} {limitStr}
                     '''.format(**strDict)
             _log.info(sql)
             cursor.execute(sql)
@@ -575,12 +657,12 @@ class Orm(object):
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'whereStr': whereStr,
-                'orderByStr': self.orderByStr,
-                'groupByStr': self.groupByStr
+                'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr
             }
             
             sql = '''SELECT COUNT(`{propertiesStr}`) num FROM {tableName} {joinStr} 
-                    WHERE {whereStr} {orderByStr} {groupByStr}
+                    WHERE {whereStr} {groupByStr} {orderByStr}
                     '''.format(**strDict)
             cursor.execute(sql, values)
             numRes = cursor.fetchone()
@@ -595,12 +677,13 @@ class Orm(object):
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'whereStr': whereStr,
-                'orderByStr': self.orderByStr,
                 'groupByStr': self.groupByStr,
+                'orderByStr': self.orderByStr,
+                
                 'limitStr':'LIMIT {}, {}'.format(startId, pageNum)
             }
             sql = '''SELECT {distinctStr} {propertiesStr} FROM {tableName} {joinStr} 
-                    WHERE {whereStr} {orderByStr} {groupByStr} {limitStr}
+                    WHERE {whereStr} {groupByStr} {orderByStr} {limitStr}
                     '''.format(**strDict)
             _log.info(sql)
             cursor.execute(sql, values)
@@ -728,6 +811,9 @@ class Orm(object):
         finally:
             cursor.close()
     
+    #################################### 子查询 ####################################
+
+    
     #################################### 清除关闭 ####################################
     def clear(self):
         ''' 清除数据，只保留数据库连接、表名、主键。清除掉主键策略/查询字段/分组字段/排序字段/多表连接/HAVING字段/去重等
@@ -743,6 +829,7 @@ class Orm(object):
         self.groupByStr = ''
         # HAVING字段
         self.havingStr = ''
+        self.havingValues = []
         # 是否去重
         self.distinct = ''
         return self

@@ -106,6 +106,51 @@ class Example(object):
         self._append('OR', (key, value, 'LIKE'))
         return self
     
+    def andNotLike(self, key, value):
+        ''' AND key NOT LIKE value
+        --
+        '''
+        self._append('AND', (key, value, 'NOT LIKE'))
+        return self
+    
+    def orNotLike(self, key, value):
+        ''' OR key NOT LIKE value
+        --
+        '''
+        self._append('OR', (key, value, 'NOT LIKE'))
+        return self
+    
+    def andBetween(self, key, v1, v2):
+        ''' AND key BETWEEN v1 AND v2
+        --
+        '''
+        self._append('AND', (key, [v1, v2], 'BETWEEN'))
+        return self
+    
+    def orBetween(self, key, v1, v2):
+        ''' OR key BETWEEN v1 AND v2
+        --
+        '''
+        self._append('OR', (key, [v1, v2], 'BETWEEN'))
+        return self
+    
+    def setWhereFromStr(self, whereStr):
+        ''' 直接从字符串中读取where条件
+        --
+        '''
+        temp = ''
+        for s in whereStr:
+            if s == ' ':
+                if len(temp) > 0:
+                    pass
+            elif s >= 'a' and s <='z' or s >= 'A' and s <= 'Z':
+                print('字母')
+            elif s >= '0' and s <= '9':
+                print('数字')
+            else:
+                print('符号') 
+        return self
+    
     def _append(self, orAnd, where):
         ''' 添加标记
         '''
@@ -120,8 +165,18 @@ class Example(object):
         '''
         if isinstance(w, tuple):
             k, v, p = w
+            if '.' in k:
+                kSplit = k.split('.')
+                if len(kSplit) == 2:
+                    k = '`' + kSplit[0] + '`.`' + kSplit[1] +'`'
+            else:
+                k = '`' + k + '`'
+                
             if p == 'IN' or p == 'NOT IN':
                 whereStr = ' ' + k + ' ' + p + ' (' + pers(len(v)) + ') '
+                return whereStr, v
+            elif p == 'BETWEEN':
+                whereStr = ' ' + k + ' ' + p + ' %s AND %s '
                 return whereStr, v
             else:
                 whereStr = ' ' + k + ' ' + p + ' %s '
