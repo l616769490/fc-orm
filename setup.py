@@ -13,7 +13,7 @@ from setuptools import setup, find_packages		# 没有这个库的可以通过pip
 
 setup(
     name = "fcorm",												    # pip项目名
-    version = "0.1.5",													# 版本号
+    version = "0.2.1",													# 版本号
     keywords = ("pip", "pathtool","timetool", "magetool", "mage"),							
     description = "简易ORM框架",									# 描述
     long_description = "只支持pymysql连接",

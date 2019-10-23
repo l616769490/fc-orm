@@ -8,8 +8,6 @@ class Example(object):
         self.orAnd = []
         # 连接字段
         self.where = []
-        # 排序字段
-        self.orderBy = []
     
     def andExample(self, example):
         ''' 添加条件组
@@ -62,6 +60,79 @@ class Example(object):
         '''
         for k, v in params.items():
             self._append('OR', (k, v, '<>'))
+        return self
+
+    def andGreaterThan(self, params):
+        ''' key1>value1 AND key2>value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('AND', (k, v, '>'))
+        return self
+    
+    def orGreaterThan(self, params):
+        ''' key1>value1 OR key2>value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('OR', (k, v, '>'))
+        return self
+    
+    def andLessThan(self, params):
+        ''' key1<value1 AND key2<value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('AND', (k, v, '<'))
+        return self
+
+    
+    def orLessThan(self, params):
+        ''' key1<value1 OR key2<value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('OR', (k, v, '<'))
+        return self
+    
+    def andGreaterThanOrEqualTo(self, params):
+        ''' key1>value1 AND key2>value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('AND', (k, v, '>='))
+        return self
+    
+    def orGreaterThanOrEqualTo(self, params):
+        ''' key1>value1 OR key2>value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('OR', (k, v, '>='))
+        return self
+    
+    def andLessThanOrEqualTo(self, params):
+        ''' key1<value1 AND key2<value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('AND', (k, v, '<='))
+        return self
+    
+    def orLessThanOrEqualTo(self, params):
+        ''' key1<value1 OR key2<value2
+        --
+            @param params 字典格式的键值对
+        '''
+        for k, v in params.items():
+            self._append('OR', (k, v, '<='))
         return self
     
     def andInValues(self, key, values):
@@ -134,21 +205,36 @@ class Example(object):
         self._append('OR', (key, [v1, v2], 'BETWEEN'))
         return self
     
+    def andNotBetween(self, key, v1, v2):
+        ''' AND key BETWEEN v1 AND v2
+        --
+        '''
+        self._append('AND', (key, [v1, v2], 'NOT BETWEEN'))
+        return self
+    
+    def orNotBetween(self, key, v1, v2):
+        ''' OR key BETWEEN v1 AND v2
+        --
+        '''
+        self._append('OR', (key, [v1, v2], 'NOT BETWEEN'))
+        return self
+    
     def setWhereFromStr(self, whereStr):
         ''' 直接从字符串中读取where条件
         --
         '''
-        temp = ''
-        for s in whereStr:
-            if s == ' ':
-                if len(temp) > 0:
-                    pass
-            elif s >= 'a' and s <='z' or s >= 'A' and s <= 'Z':
-                print('字母')
-            elif s >= '0' and s <= '9':
-                print('数字')
-            else:
-                print('符号') 
+        ################################## TODO ####################################
+        # temp = ''
+        # for s in whereStr:
+        #     if s == ' ':
+        #         if len(temp) > 0:
+        #             pass
+        #     elif s >= 'a' and s <='z' or s >= 'A' and s <= 'Z':
+        #         print('字母')
+        #     elif s >= '0' and s <= '9':
+        #         print('数字')
+        #     else:
+        #         print('符号') 
         return self
     
     def _append(self, orAnd, where):
@@ -175,7 +261,7 @@ class Example(object):
             if p == 'IN' or p == 'NOT IN':
                 whereStr = ' ' + k + ' ' + p + ' (' + pers(len(v)) + ') '
                 return whereStr, v
-            elif p == 'BETWEEN':
+            elif p == 'BETWEEN' or p == 'NOT BETWEEN':
                 whereStr = ' ' + k + ' ' + p + ' %s AND %s '
                 return whereStr, v
             else:

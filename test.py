@@ -1,18 +1,9 @@
-# import pymysql
-# from fcorm import Orm, Example
-# db = pymysql.connect('localhost', 'root', '123456', 'test', charset="utf8", cursorclass=pymysql.cursors.DictCursor)
+import pymysql
+from fcorm import Orm2, Example, Transaction
+db = pymysql.connect('localhost', 'root', '123456', 'test', charset="utf8", cursorclass=pymysql.cursors.DictCursor)
 
-# orm = Orm(db, 'student')
-# example = Example().andBetween('age', 19, 22)
-# res = orm.selectByExample(example)
-# print(res)
+orm1 = Orm2('study', 'sid').selectByPrimaeyKey(1).selectPageAll(1, 10)
 
-s = ' '
-if s == ' ':
-    print('空格')
-elif s >= 'a' and s <='z' or s >= 'A' and s <= 'Z':
-    print('字母')
-elif s >= '0' and s <= '9':
-    print('数字')
-else:
-    print('符号') 
+orm2 = Orm2('student', 'sid').selectAll()
+transaction = Transaction(db).add(orm1).add(orm2)
+print(transaction.commit())
