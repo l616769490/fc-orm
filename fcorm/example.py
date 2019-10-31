@@ -1,4 +1,4 @@
-from .sql_utils import pers
+from fcutils import pers
 class Example(object):
     def __init__(self):
         ''' SQL语句条件

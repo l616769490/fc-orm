@@ -1,6 +1,6 @@
 import logging
 from .constant import AUTO_INCREMENT_KEYS, PRIMARY_KEY
-from .sql_utils import fieldStrAndPer, fieldSplit, joinList, pers
+from fcutils import fieldStrAndPer, fieldSplit, joinList, pers
 
 _log = logging.getLogger()
 
@@ -407,7 +407,20 @@ class Orm(object):
                     {'user':[('name', 'user_name'), 'age'], 'order':['orderId']}  => SELECT `user`.`name` `user_name`, `user`.`age`, `order`:`orderId` FROM
         '''
         if isinstance(properties, list):
-            self.properties = joinList(properties)
+            for i, v in enumerate(properties):
+                if isinstance(v, tuple):
+                    vTuple1 = v[0]
+                    vTuple2 = v[1]
+                    if '.' in vTuple1:
+                        vTuple1s = vTuple1.split('.')
+                        vTuple1 = '`' + vTuple1s[0] + '`.`' + vTuple1s[1] + '`'
+                    properties[i] = ' {} {} '.format(vTuple1, vTuple2)
+                elif '.' in v:
+                    vs = v.split('.')
+                    properties[i] = '`' + vs[0] + '`.`' + vs[1] + '`'
+                else:
+                    properties[i] = '`' + v + '`'
+            self.properties = joinList(properties, prefix='', suffix='')
         elif isinstance(properties, dict):
             arr = []
             for k, v1 in properties.items():
@@ -502,6 +515,8 @@ class Orm(object):
             _log.info(sql)
             cursor.execute(sql, values)
             res = cursor.fetchall()
+            if res and len(res) == 1:
+                res = res[0]
             self.db.commit()
             return res
         except Exception as e:
