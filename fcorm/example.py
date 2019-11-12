@@ -219,22 +219,108 @@ class Example(object):
         self._append('OR', (key, [v1, v2], 'NOT BETWEEN'))
         return self
     
-    def setWhereFromStr(self, whereStr):
-        ''' 直接从字符串中读取where条件
+    def whereFromStr(self, whereStr):
+        ''' 直接从字符串中读取where条件，暂不支持带子查询的语句
         --
         '''
-        ################################## TODO ####################################
-        # temp = ''
-        # for s in whereStr:
-        #     if s == ' ':
-        #         if len(temp) > 0:
-        #             pass
-        #     elif s >= 'a' and s <='z' or s >= 'A' and s <= 'Z':
-        #         print('字母')
-        #     elif s >= '0' and s <= '9':
-        #         print('数字')
-        #     else:
-        #         print('符号') 
+        import re
+        keyword = ''
+        # 前面是否有NOT关键字
+        haveNot = False
+        # 圆括号
+        parentheses = False
+        # 符号
+        sign = ''
+        key = ''
+        value = ''
+        whereSplit = re.split(r'\s+', whereStr.strip())
+        for s in whereSplit:
+            if (s.upper() == 'AND' or s.upper() == 'OR') and not parentheses:
+                if sign and (sign.upper() == 'BETWEEN' or sign.upper() == 'NOT BETWEEN'):
+                    continue
+                keyword = s.upper()
+                continue
+
+            if s.startswith('('):
+                parentheses = True
+                if len(s) > 1:
+                    s = s[1:]
+                else:
+                    continue
+            
+            if parentheses:
+                if s.endswith(')'):
+                    if len(s) > 1:
+                        value += s[:-1]
+                else:
+                    value += s + ' '
+                    continue
+            else:
+                if s.upper() == 'NOT':
+                    haveNot = True
+                    continue
+                elif s.upper() == 'IN' or s.upper() == 'LIKE' or s.upper() == 'BETWEEN':
+                    if haveNot:
+                        sign = 'NOT ' + s
+                    else:
+                        sign = s
+                    continue
+                else:
+                    s = s.replace('`', '')
+                    if '=' in s and '=' != s:
+                        sign = '='
+                        key, value = s.split('=')
+                    elif '<>' in s and '<>' != s:
+                        sign = '<>'
+                        key, value = s.split('<>')
+                    elif '>' in s and '>' != s:
+                        sign = '>'
+                        key, value = s.split('>')
+                    elif '<' in s and '<' != s:
+                        sign = '<'
+                        key, value = s.split('<')
+                    elif '>=' in s and '>=' != s:
+                        sign = '>='
+                        key, value = s.split('>=')
+                    elif '<=' in s and '<=' != s:
+                        sign = '<='
+                        key, value = s.split('<=')
+                    else:
+                        if sign and key:
+                            if sign.upper() == 'BETWEEN' or sign.upper() == 'NOT BETWEEN':
+                                if value:
+                                    value.append(s)
+                                else:
+                                    value = [s]
+                                    continue
+                            else:
+                                value = s
+                        elif key:
+                            sign = s
+                            continue
+                        else:
+                            key = s
+                            continue
+
+            if not sign:
+                self._append(keyword, Example().whereFromStr(value))
+            elif sign.upper() == 'IN' or sign.upper() == 'NOT IN':
+                import json
+                value = json.loads('[' + value + ']') 
+                print(type(value))
+                print((keyword, (key, value, sign)))
+                self._append(keyword, (key, value, sign))
+            else:
+                if isinstance(value, str) and value.startswith('"') and value.endswith('"') and len(value) > 1:
+                    value = value[1:-1]
+                value = value
+                self._append(keyword, (key, value, sign))
+            sign = ''
+            key = ''
+            value = ''
+            haveNot = False
+            parentheses = False
+            keyword = ''
         return self
     
     def _append(self, orAnd, where):
@@ -257,15 +343,14 @@ class Example(object):
                     k = '`' + kSplit[0] + '`.`' + kSplit[1] +'`'
             else:
                 k = '`' + k + '`'
-                
-            if p == 'IN' or p == 'NOT IN':
-                whereStr = ' ' + k + ' ' + p + ' (' + pers(len(v)) + ') '
+            if p.upper() == 'IN' or p.upper() == 'NOT IN':
+                whereStr = ' ' + k + ' ' + p.upper() + ' (' + pers(len(v)) + ') '
                 return whereStr, v
-            elif p == 'BETWEEN' or p == 'NOT BETWEEN':
-                whereStr = ' ' + k + ' ' + p + ' %s AND %s '
+            elif p.upper() == 'BETWEEN' or p.upper() == 'NOT BETWEEN':
+                whereStr = ' ' + k + ' ' + p.upper() + ' %s AND %s '
                 return whereStr, v
             else:
-                whereStr = ' ' + k + ' ' + p + ' %s '
+                whereStr = ' ' + k + ' ' + p.upper() + ' %s '
                 return whereStr, v
         elif isinstance(w, Example):
             s, v = w.whereBuilder()
@@ -298,3 +383,6 @@ class Example(object):
                 values.append(v)
 
         return whereStr, values
+    
+    def __str__(self):
+        return str(self.whereBuilder())
