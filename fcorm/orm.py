@@ -1,6 +1,6 @@
 import logging
 from .constant import AUTO_INCREMENT_KEYS, PRIMARY_KEY
-from fcutils import fieldStrAndPer, fieldSplit, joinList, pers
+from fcutils import fieldStrAndPer, fieldSplit, joinList, pers, dataToStr
 
 _log = logging.getLogger()
 
@@ -170,7 +170,7 @@ class Orm(object):
             else:
                 return -1
         elif n == 2:
-            return self.insertList(args[0], args[1])
+            return self.insertMany(args[0], args[1])
         else:
             return -1
 
@@ -207,26 +207,55 @@ class Orm(object):
         finally:
             cursor.close()
     
-    def insertList(self, keys, dataList):
+    def insertMany(self, keys, data):
         ''' 插入一组数据，注意：返回的是第一条数据的ID
         --
             @example
-                orm.insertList(['name', 'age'], [['张三', 18], ['李四', 19]])
+                orm.insertMany(['name', 'age'], [{'name':'张三', 'age':18}, {'name':'李四', 'age':19}])
+                orm.insertMany(['name', 'age'], {'name':'张三', 'age':18})
+                orm.insertMany(['name', 'age'], [['张三', 18], ['李四', 19]])
 
             @param keys: 插入的字段名
-            @param dataList: 插入的数据列表，和字段名一一对应
+            @param data: 插入的数据, 字典格式（单条）， 列表（列表里包含字典）格式（多条）
         '''
-        if not dataList or not dataList[0]:
+        if not data:
             raise Exception('数据为空！')
 
         cursor = self.conn.cursor()
         try:
-            # 如果主键不是自增，则生成主键
+            dataList = []
+            if isinstance(data, dict):
+                for k in keys:
+                    dataList.append(dataToStr(data[k]))
+                # 如果主键不是自增，则生成主键
+                if self.generator != AUTO_INCREMENT_KEYS:   
+                    if self.keyProperty not in keys:    # 传入的keys里面没有主键
+                        dataList.append(self.generator())
+            
+            if isinstance(data, list):
+                if isinstance(data[0], list):
+                    for l in data:
+                        d = list(map(dataToStr, l))
+                        # 如果主键不是自增，则生成主键
+                        if self.generator != AUTO_INCREMENT_KEYS:   
+                            if self.keyProperty not in keys:    # 传入的keys里面没有主键
+                                d.append(self.generator())
+                        dataList.append(d)
+                elif isinstance(data[0], dict):    
+                    for d in data:
+                        dd = []
+                        for k in keys:
+                            dd.append(dataToStr(d[k]))
+                            # 如果主键不是自增，则生成主键
+                            if self.generator != AUTO_INCREMENT_KEYS:   
+                                if self.keyProperty not in keys:    # 传入的keys里面没有主键
+                                    dd.append(self.generator())
+                        dataList.append(dd)
+                
+            # 如果主键不是自增
             if self.generator != AUTO_INCREMENT_KEYS:   
                 if self.keyProperty not in keys:    # 传入的keys里面没有主键
                     keys.append(self.keyProperty)
-                    for data in dataList:
-                        data.append(self.generator())
 
             sql = 'INSERT INTO `{}`({}) VALUES({})'.format(self.tableName, joinList(keys), pers(len(keys)))
             _log.info(sql)
@@ -281,11 +310,12 @@ class Orm(object):
             cursor.close()
 
     #################################### 更新操作 ####################################
-    def updateByPrimaryKey(self, data, primaryValue = None):
+    def updateByPrimaryKey(self, data, primaryValue = None, keys = None):
         ''' 根据主键更新数据
         --
             @param data: 要更新的数据，字典格式
             @param primaryValue: 主键值，为None则从data中寻找主键
+            @param keys: 更新哪些列，如果此项有值则只更新data中指定的列，多余的列不会被更新
         '''
         if not primaryValue:
             primaryValue = data.pop(self.keyProperty, None)
@@ -295,6 +325,13 @@ class Orm(object):
         
         if not data:
             raise Exception('数据为空！')
+
+        if keys:
+            data2 = {}
+            for k in keys:
+                if k in data:
+                    data2[k] = data[k]
+            data = data2
 
         cursor = self.conn.cursor()
         try:
@@ -313,15 +350,25 @@ class Orm(object):
         finally:
             cursor.close()
     
-    def updateByExample(self, data, example):
+    def updateByExample(self, data, example, keys = None):
         ''' 根据Example条件更新
         --
+            @param data: 要更新的数据，字典格式
+            @param example: 更新条件
+            @param keys: 更新哪些列，如果此项有值则只更新data中指定的列，多余的列不会被更新
         '''
         if not example:
             raise Exception('未传入更新条件！')
         
         if not data:
             raise Exception('数据为空！')
+
+        if keys:
+            data2 = {}
+            for k in keys:
+                if k in data:
+                    data2[k] = data[k]
+            data = data2
 
         cursor = self.conn.cursor()
         try:
@@ -348,6 +395,11 @@ class Orm(object):
             @param key 排序字段
             @param clause DESC或者ASC
         '''
+        if '.' in key:
+            keys = key.split('.')
+            key = '`' + keys[0] + '`.`' + keys[1] + '`'
+        else:
+            key = '`' + key + '`'
         if not self.orderByStr:
             self.orderByStr = ' ORDER BY ' + key + ' ' + clause + ' '
         else:
@@ -359,6 +411,11 @@ class Orm(object):
         --
             @param key 分组字段
         '''
+        if '.' in key:
+            keys = key.split('.')
+            key = '`' + keys[0] + '`.`' + keys[1] + '`'
+        else:
+            key = '`' + key + '`'
         if not self.groupByStr:
             self.groupByStr = ' GROUP BY ' + key + ' '
         else:
@@ -632,7 +689,7 @@ class Orm(object):
 
         try:
             strDict = {
-                'propertiesStr': self.keyProperty,
+                'propertiesStr': '`{}`.`{}`'.format(self.tableName, self.keyProperty),
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'groupByStr': self.groupByStr,
@@ -686,7 +743,7 @@ class Orm(object):
         try:
             whereStr, values = example.whereBuilder()
             strDict = {
-                'propertiesStr': self.keyProperty,
+                'propertiesStr': '`{}`.`{}`'.format(self.tableName, self.keyProperty),
                 'tableName': self.tableName,
                 'joinStr': self.joinStr,
                 'whereStr': whereStr,
@@ -694,7 +751,7 @@ class Orm(object):
                 'orderByStr': self.orderByStr
             }
             
-            sql = '''SELECT COUNT(`{propertiesStr}`) num FROM {tableName} {joinStr} 
+            sql = '''SELECT COUNT({propertiesStr}) num FROM {tableName} {joinStr} 
                     WHERE {whereStr} {groupByStr} {orderByStr}
                     '''.format(**strDict)
             _log.info(sql)
