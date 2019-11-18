@@ -153,6 +153,8 @@ class Orm(object):
                 orm.insertData({'name':'张三', 'age':18})
                 orm.insertData(['name', 'age'], [['张三', 18], ['李四', 19]])
                 orm.insertData([{'name':'张三', 'age':18}, {'name':'李四', 'age':19}])
+                orm.insertData(['name', 'age'], [{'name':'张三', 'age':18}, {'name':'李四', 'age':19}])
+                orm.insertData(['name', 'age'], {'name':'张三', 'age':18})
             
             @param args: 要写入的数据，可以有以下三种形式：
                         1. dict: 单条数据key,value键值对形式
@@ -224,42 +226,47 @@ class Orm(object):
         cursor = self.conn.cursor()
         try:
             dataList = []
+            columns = []
             if isinstance(data, dict):
                 for k in keys:
-                    dataList.append(dataToStr(data[k]))
-                # 如果主键不是自增，则生成主键
-                if self.generator != AUTO_INCREMENT_KEYS:   
-                    if self.keyProperty not in keys:    # 传入的keys里面没有主键
-                        dataList.append(self.generator())
+                    if k in data:
+                        dataList.append(dataToStr(data[k]))
+                        columns.append(k)
             
-            if isinstance(data, list):
+            elif isinstance(data, list):
                 if isinstance(data[0], list):
                     for l in data:
                         d = list(map(dataToStr, l))
-                        # 如果主键不是自增，则生成主键
-                        if self.generator != AUTO_INCREMENT_KEYS:   
-                            if self.keyProperty not in keys:    # 传入的keys里面没有主键
-                                d.append(self.generator())
                         dataList.append(d)
-                elif isinstance(data[0], dict):    
+                    columns = keys
+                elif isinstance(data[0], dict): 
+                    sign = True   
                     for d in data:
                         dd = []
                         for k in keys:
-                            dd.append(dataToStr(d[k]))
-                            # 如果主键不是自增，则生成主键
-                            if self.generator != AUTO_INCREMENT_KEYS:   
-                                if self.keyProperty not in keys:    # 传入的keys里面没有主键
-                                    dd.append(self.generator())
-                        dataList.append(dd)
-                
-            # 如果主键不是自增
-            if self.generator != AUTO_INCREMENT_KEYS:   
-                if self.keyProperty not in keys:    # 传入的keys里面没有主键
-                    keys.append(self.keyProperty)
+                            if k in data:
+                                dd.append(dataToStr(d[k]))
+                                if sign:
+                                    columns.append(k)
+                        sign = False
+                        if dd:
+                            dataList.append(dd)
 
-            sql = 'INSERT INTO `{}`({}) VALUES({})'.format(self.tableName, joinList(keys), pers(len(keys)))
+            if self.generator != AUTO_INCREMENT_KEYS: 
+                if self.keyProperty not in columns:
+                    columns.append(self.keyProperty)
+                    if isinstance(dataList[0], list):
+                        for data in dataList:
+                            data.append(self.generator())
+                    else:
+                        dataList.append(self.generator())
+
+            sql = 'INSERT INTO `{}`({}) VALUES({})'.format(self.tableName, joinList(columns), pers(len(columns)))
             _log.info(sql)
-            cursor.executemany(sql, dataList)
+            if isinstance(dataList[0], list):
+                cursor.executemany(sql, dataList)
+            else:
+                cursor.execute(sql, dataList)
             lastId = cursor.lastrowid
             if self.auto_commit:
                 self.conn.commit()
