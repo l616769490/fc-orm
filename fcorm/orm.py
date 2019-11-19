@@ -346,10 +346,10 @@ class Orm(object):
             values.append(primaryValue)
             sql = 'UPDATE `{}` SET {} WHERE `{}`=%s'.format(self.tableName, fieldStr, self.keyProperty)
             _log.info(sql)
-            cursor.execute(sql, values)
+            res = cursor.execute(sql, values)
             if self.auto_commit:
                 self.conn.commit()
-            return True
+            return res
         except Exception as e:
             _log.error(e)
             self.conn.rollback()
@@ -384,10 +384,10 @@ class Orm(object):
             values2.extend(values1)
             sql = 'UPDATE `{}` SET {} WHERE {}'.format(self.tableName, fieldStr, whereStr)
             _log.info(sql)
-            cursor.execute(sql, values2)
+            res = cursor.execute(sql, values2)
             if self.auto_commit:
                 self.conn.commit()
-            return True
+            return res
         except Exception as e:
             _log.error(e)
             self.conn.rollback()
@@ -808,10 +808,10 @@ class Orm(object):
         try:
             sql = 'DELETE FROM `{}` WHERE `{}`=%s'.format(self.tableName, self.keyProperty)
             _log.info(sql)
-            cursor.execute(sql, primaryValue)
+            res = cursor.execute(sql, primaryValue)
             if self.auto_commit:
                 self.conn.commit()
-            return True
+            return res
         except Exception as e:
             _log.error(e)
             self.conn.rollback()
@@ -830,10 +830,10 @@ class Orm(object):
             whereStr, values = example.whereBuilder()
             sql = 'DELETE FROM `{}` WHERE {}'.format(self.tableName, whereStr)
             _log.info(sql)
-            cursor.execute(sql, values)
+            res = cursor.execute(sql, values)
             if self.auto_commit:
                 self.conn.commit()
-            return True
+            return res
         except Exception as e:
             _log.error(e)
             self.conn.rollback()
