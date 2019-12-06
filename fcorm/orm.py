@@ -2,6 +2,8 @@ import logging
 from .constant import AUTO_INCREMENT_KEYS, PRIMARY_KEY
 from fcutils import fieldStrAndPer, fieldSplit, joinList, pers, dataToStr
 
+__all__ = ['Orm']
+
 _log = logging.getLogger()
 
 class Orm(object):
